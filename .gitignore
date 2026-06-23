@@ -1,0 +1,9 @@
+# 코드만 버전관리. 산출물·환경·데이터는 work/ 에 (제외)
+work/
+server/
+*.pt
+*.pyc
+__pycache__/
+.venv/
+runs/
+*.log

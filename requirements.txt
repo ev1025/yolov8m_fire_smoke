@@ -1,0 +1,6 @@
+# 전용 venv 설치 순서 (setup_env.ps1 참고)
+#  1) torch/torchvision (CUDA 12.4):
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#  2) 아래:
+ultralytics>=8.2.0
+pyyaml

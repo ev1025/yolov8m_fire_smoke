@@ -29,9 +29,12 @@ def main():
         device=args.device,
         project=str(C.RUNS_DIR),
         name="yolov8m_fire_smoke",
-        # 화재/연기 도메인: 색상 왜곡은 약하게(불꽃 색 보존), 기하 증강은 유지
+        # 화재/연기 도메인: 색상 왜곡은 약하게(불꽃 색 보존), 좌우반전만 허용
         hsv_h=0.015, hsv_s=0.5, hsv_v=0.4,
-        fliplr=0.5, mosaic=1.0, close_mosaic=10,
+        fliplr=0.5, flipud=0.0,            # 상하반전 금지(불꽃은 위로 탐)
+        mosaic=1.0, close_mosaic=10,       # 막판 10ep 모자이크 off -> 박스 정밀도↑
+        # multi_scale=True 는 DDP+imgsz1280에서 Size를 128로 뽑아 interpolate 크래시 -> 비활성
+        box=10.0,                          # box loss 가중(기본7.5) -> mAP@50-95(타이트 박스)↑
         patience=30, cos_lr=True,
     )
     if args.time:

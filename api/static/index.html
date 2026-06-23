@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>화재/연기 실시간 탐지</title>
+<style>
+  :root { --bg:#0e1116; --card:#171c24; --line:#262d38; --fg:#e6edf3; --mut:#8b949e; --acc:#ff5a3c; --ok:#2ea043; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,'Malgun Gothic',sans-serif; }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); font-weight:700; font-size:18px; display:flex; align-items:center; gap:12px; }
+  header .mut { color:var(--mut); font-size:12px; font-weight:400; }
+  .wrap { max-width:1100px; margin:20px auto; padding:0 16px; }
+  .bar { display:flex; flex-wrap:wrap; align-items:center; gap:14px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:16px; }
+  .bar label { color:var(--mut); font-size:13px; }
+  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:9px 15px; font-weight:600; cursor:pointer; }
+  button.ghost { background:#222a35; color:var(--fg); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=file] { color:var(--fg); font-size:13px; max-width:230px; }
+  .stage { position:relative; background:#000; border:1px solid var(--line); border-radius:12px; overflow:hidden; line-height:0; }
+  .stage video { width:100%; display:block; }
+  .stage canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .hud { position:absolute; top:12px; left:12px; display:flex; gap:8px; align-items:center; z-index:2; }
+  .badge { padding:5px 14px; border-radius:999px; font-weight:800; font-size:14px; letter-spacing:.3px; }
+  .alarm { background:rgba(255,90,60,.9); color:#fff; box-shadow:0 0 0 3px rgba(255,90,60,.25); }
+  .normal { background:rgba(46,160,67,.85); color:#fff; }
+  .chip { background:rgba(0,0,0,.55); color:#cdd6e0; font-size:12px; padding:5px 10px; border-radius:999px; }
+  .legend { display:flex; gap:14px; margin-top:10px; color:var(--mut); font-size:12px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+  .jsonwrap { margin-top:16px; }
+  .jsonwrap .h { color:var(--mut); font-size:13px; margin-bottom:8px; }
+  pre { background:#0b0e13; border:1px solid var(--line); border-radius:10px; padding:14px; margin:0; max-height:300px; overflow:auto; font-size:12px; line-height:1.5; color:#c9d1d9; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<header>🔥 화재/연기 실시간 탐지 <span class="mut" id="model"></span></header>
+<div class="wrap">
+  <div class="bar">
+    <input type="file" id="file" accept="video/*">
+    <button class="ghost" id="cam">웹캠</button>
+    <span style="flex:1"></span>
+    <label>confidence</label>
+    <input type="range" id="conf" min="0.05" max="0.9" step="0.05" value="0.25">
+    <span id="confv">0.25</span>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="hud">
+      <span class="badge normal" id="badge">NORMAL</span>
+      <span class="chip" id="info">대기</span>
+    </div>
+    <video id="video" muted playsinline controls></video>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#ff5a3c"></span>fire</span>
+    <span><span class="dot" style="background:#3b9dff"></span>smoke</span>
+    <span id="src" style="margin-left:auto"></span>
+  </div>
+
+  <div class="jsonwrap">
+    <div class="h">응답 JSON (최근 프레임)</div>
+    <pre id="json">—</pre>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const video = $('#video'), overlay = $('#overlay'), octx = overlay.getContext('2d');
+const cap = document.createElement('canvas'), cctx = cap.getContext('2d');
+const COLORS = { fire:'#ff5a3c', smoke:'#3b9dff' };
+let running=false, inflight=false, frames=0, lastT=performance.now();
+
+$('#conf').oninput = e => $('#confv').textContent = e.target.value;
+
+fetch('/health').then(r=>r.json()).then(h=>{
+  $('#model').textContent = h.status==='ok' ? ('· '+Object.values(h.classes).join('/')) : '· 모델 미로드';
+}).catch(()=>{});
+
+// 입력 소스
+$('#file').onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  stopCam();
+  video.srcObject = null; video.src = URL.createObjectURL(f);
+  $('#src').textContent = f.name;
+  video.play();
+};
+$('#cam').onclick = async () => {
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ video:{ width:1280, height:720 } });
+    video.removeAttribute('src'); video.srcObject = st; $('#src').textContent='웹캠';
+    video.play();
+  } catch(err){ alert('웹캠 접근 실패: '+err.message); }
+};
+function stopCam(){ if(video.srcObject){ video.srcObject.getTracks().forEach(t=>t.stop()); video.srcObject=null; } }
+
+function startLoop(){ if(running) return; running=true; lastT=performance.now(); frames=0; loop(); }
+
+function syncCanvas(){
+  overlay.width = video.clientWidth; overlay.height = video.clientHeight;
+}
+window.addEventListener('resize', syncCanvas);
+// 소스 로드되면 캔버스 맞추고 탐지 자동 시작 (시작 버튼 안 눌러도 됨)
+video.addEventListener('loadeddata', () => { syncCanvas(); alarmWin = []; startLoop(); });
+
+async function loop(){
+  if(!running) return;
+  if(!inflight && video.videoWidth && video.readyState >= 2 && !video.ended){
+    inflight = true;
+    const MAXW = 1280;                                  // 전송 해상도 상한(서버 imgsz와 일치)
+    const sc = video.videoWidth > MAXW ? MAXW/video.videoWidth : 1;
+    const cw = Math.round(video.videoWidth*sc), ch = Math.round(video.videoHeight*sc);
+    cap.width = cw; cap.height = ch;
+    cctx.drawImage(video, 0, 0, cw, ch);
+    cap.toBlob(async blob => {
+      const fd = new FormData();
+      fd.append('file', blob, 'f.jpg');
+      fd.append('conf', $('#conf').value);
+      fd.append('annotate', 'false');
+      try {
+        const r = await fetch('/detect', { method:'POST', body:fd });
+        const j = await r.json();
+        draw(j.detections, cw, ch);
+        setAlarm(j.alarm);
+        $('#json').textContent = JSON.stringify(j, null, 2);
+        frames++;
+        const now=performance.now();
+        if(now-lastT>500){ $('#info').textContent = (frames*1000/(now-lastT)).toFixed(1)+' fps'; frames=0; lastT=now; }
+      } catch(e){}
+      inflight = false;
+    }, 'image/jpeg', 0.7);
+  }
+  requestAnimationFrame(loop);
+}
+
+function clearOverlay(){ octx.clearRect(0,0,overlay.width,overlay.height); }
+
+function draw(dets, srcW, srcH){
+  syncCanvas();
+  clearOverlay();
+  const sx = overlay.width/srcW, sy = overlay.height/srcH;
+  octx.lineWidth = 2; octx.font = '14px system-ui'; octx.textBaseline='bottom';
+  for(const d of dets){
+    const [x1,y1,x2,y2] = d.bbox_xyxy;
+    const col = COLORS[d.class] || '#ffd23f';
+    const X=x1*sx, Y=y1*sy, W=(x2-x1)*sx, H=(y2-y1)*sy;
+    octx.strokeStyle = col; octx.strokeRect(X, Y, W, H);
+    const t = `${d.class} ${(d.confidence*100).toFixed(0)}%`;
+    const tw = octx.measureText(t).width + 8, lh = 18;
+    const lx = Math.max(0, Math.min(X, overlay.width - tw));   // 좌우 화면 밖 방지
+    const ly = (Y - lh < 0) ? Y : Y - lh;                      // 위 공간 없으면(상단 큰 박스) 박스 안쪽
+    octx.fillStyle = col; octx.fillRect(lx, ly, tw, lh);
+    octx.fillStyle = '#000'; octx.fillText(t, lx + 4, ly + lh - 4);
+  }
+}
+
+// 시계열 보팅: 순간 오탐/깜빡임 억제. 최근 N프레임 중 K프레임 이상이면 경보.
+let alarmWin = [];
+const VOTE_N = 5, VOTE_K = 3;
+function setAlarm(a){
+  alarmWin.push(!!(a && a.alarm));
+  if(alarmWin.length > VOTE_N) alarmWin.shift();
+  const on = alarmWin.filter(Boolean).length >= VOTE_K;
+  const b = $('#badge');
+  if(on){ b.className='badge alarm'; b.textContent = 'ALARM' + (a && a.classes && a.classes.length ? (' · '+a.classes.join('/')) : ''); }
+  else { b.className='badge normal'; b.textContent='NORMAL'; }
+}
+
+// 항시 탐지: 종료해도 멈추지 않고, 재생 재개되면 자동으로 다시 탐지
+</script>
+</body>
+</html>

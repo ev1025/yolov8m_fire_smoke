@@ -23,6 +23,7 @@ RUNS_DIR       = WORK / "runs"              # 학습 가중치
 DATA_HOME      = Path(r"C:\Users\eg287\OneDrive\바탕 화면\project\LLM\DATA\datasets\fire_smoke_yolo")
 DATASET        = DATA_HOME / "dataset_24k"  # 기본 학습셋(24k). 48k 실험은 dataset_48k
 DATA_YAML      = DATA_HOME / "data.yaml"    # 기본 yaml(→dataset_24k). 48k는 data_48k.yaml
+HN_STAGING     = DATA_HOME / "hardneg" / "staging"  # hard-neg 추출 풀(이미지 데이터, 레포 밖). CSV는 work/hn
 
 # ===================== 클래스 (추천: 2클래스) =====================
 # JSON categories_id : 1=fl(불꽃), 2=sm(연기), 3=none(정상)

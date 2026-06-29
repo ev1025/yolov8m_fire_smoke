@@ -13,3 +13,12 @@ run_overnight.ps1
 setup_env.ps1
 start_api.bat
 api/
+
+# Hailo: 코드(Dockerfile/스크립트)만 버전관리. 게이팅 바이너리·대용량 산출물 제외
+hailo/*.whl
+hailo/*.deb
+hailo/best.onnx
+hailo/*.hef
+hailo/*.har
+hailo/calib_data/
+hailo/hef_output/

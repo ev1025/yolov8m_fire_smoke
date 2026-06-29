@@ -10,7 +10,7 @@
 # ============================================================
 $ErrorActionPreference = "Stop"
 
-$WORK      = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "work"
+$WORK      = Join-Path (Split-Path -Parent $PSScriptRoot) "work"   # data_prep 상위(루트)/work
 $ZIP       = "D:\화재연기_원천데이터\01.원천데이터\TS.zip"
 $LIST      = Join-Path $WORK "extract_list.txt"
 $STAGING   = Join-Path $WORK "staging"
@@ -45,4 +45,4 @@ Write-Host "추출 대상 $($lines.Count) 개 -> $STAGING"
 # 4) 선택 추출 (x = 추출, 원본 불변)
 & $sz x $ZIP "-o$STAGING" "@$FULL" -y -bsp1
 if ($LASTEXITCODE -ne 0) { Write-Host "[경고] 7z 종료코드 $LASTEXITCODE" -ForegroundColor Yellow }
-Write-Host "[완료] 추출 끝 -> 다음: python 04_convert_to_yolo.py"
+Write-Host "[완료] 추출 끝 -> 다음: python data_prep/04_convert_to_yolo.py"

@@ -17,6 +17,7 @@
 import sys, csv, json, shutil
 from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8")
+import os; sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # data_prep 상위(루트)에서 config import
 import config as C
 
 

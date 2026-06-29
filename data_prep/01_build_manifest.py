@@ -12,6 +12,7 @@ import sys, os, csv
 from pathlib import Path
 from collections import Counter
 sys.stdout.reconfigure(encoding="utf-8")   # 윈도우 콘솔 한글 깨짐 방지
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # data_prep 상위(루트)에서 config import
 import config as C                         # 경로·설정은 config.py 한 곳에 모음
 
 

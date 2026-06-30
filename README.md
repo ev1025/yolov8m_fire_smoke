@@ -37,7 +37,7 @@ yolo_fire_smoke/
 ├── requirements.txt
 ├── data_prep/              # 데이터 파이프라인 (순차 실행)
 │   ├── 01_build_manifest.py   # 라벨 색인 + 통계 (zip 미접근)
-│   ├── 02_subsample_split.py  # 클립당 12장 서브샘플 + 클립단위 train/val 분할
+│   ├── 02_subsample_split.py  # 클립당 6장 서브샘플 + 클립단위 train/val 분할
 │   ├── 03_extract_images.ps1  # 7z로 선택한 jpg만 추출 (분할압축, 원본 불변)
 │   ├── 04_convert_to_yolo.py  # COCO JSON -> YOLO txt + 이미지 복사
 │   ├── 05_hn_mine.py          # hard-negative 마이닝 (candidates/score/inject)

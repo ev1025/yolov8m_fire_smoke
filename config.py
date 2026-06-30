@@ -33,7 +33,7 @@ CLASS_NAMES = ["fire", "smoke"]      # YOLO 클래스 이름
 CLS_DIRS    = {"불꽃": "fl", "연기": "sm", "정상": "none"}
 
 # ===================== 서브샘플링 / 분할 =====================
-FRAMES_PER_CLIP = 12     # 클립당 360프레임 -> 12 = 약 4.8만장 (다양성 유지, 중복만 제거)
+FRAMES_PER_CLIP = 6      # 클립당 360프레임 -> 6 = 약 2.4만장(dataset_24k, production). 12면 4.8만장(dataset_48k 실험)
 NORMAL_RATIO    = 0.15   # 정상(네거티브) 이미지 비율 상한 (전체 대비)
 VAL_RATIO       = 0.20   # 검증 비율 (반드시 '클립' 단위로 분할)
 SEED            = 42
